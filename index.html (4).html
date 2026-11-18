@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>네온 아케이드 스네이크 게임</title>
+    <style>
+        /* 기본 초기화 및 반응형 레이아웃 설정 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            /* 모바일 터치 시 텍스트 선택 및 파란 하이라이트 방지 */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            /* 더블탭 줌 방지 및 즉각적인 터치 반응 */
+            touch-action: manipulation;
+        }
+
+        :root {
+            --bg-dark: #090d16;
+            --panel-bg: #111827;
+            --border-color: #1f2937;
+            --neon-green: #22c55e;
+            --neon-green-glow: rgba(34, 197, 94, 0.5);
+            --neon-red: #f43f5e;
+            --neon-red-glow: rgba(244, 63, 94, 0.6);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-amber: #f59e0b;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 100vh;
+            min-height: 100dvh; /* 모바일 브라우저 주소창 고려 */
+            padding: clamp(8px, 2vh, 16px) 12px;
+            overflow: hidden; /* 화면 스크롤 방지 */
+        }
+
+        /* 전체 게임 컨테이너 */
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 500px;
+            height: 100%;
+            flex: 1;
+            gap: clamp(8px, 1.5vh, 14px);
+        }
+
+        /* 상단 헤더 및 점수판 */
+        .header-panel {
+            width: 100%;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: clamp(8px, 1.5vh, 12px) 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .game-title {
+            font-size: clamp(1.1rem, 3.5vw, 1.35rem);
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px var(--neon-green-glow);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .score-group {
+            display: flex;
+            gap: 14px;
+        }
+
+        .score-box {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .score-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        .score-value {
+            font-size: clamp(1.1rem, 3.5vw, 1.3rem);
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-main);
+        }
+
+        .score-value.highlight {
+            color: var(--accent-amber);
+        }
+
+        /* 게임 보드(캔버스) 영역 - 화면 크기에 맞춰 정사각형 자동 조절 */
+        .board-container {
+            position: relative;
+            /* 화면 너비와 높이를 모두 고려하여 스크롤 없이 한 화면에 들어오도록 크기 계산 */
+            width: min(88vw, 48vh, 420px);
+            height: min(88vw, 48vh, 420px);
+            background-color: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 14px;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 모바일 세로 화면이 길 경우 보드 크기 여유 확보 */
+        @media (min-height: 720px) and (max-width: 600px) {
+            .board-container {
+                width: min(90vw, 52vh, 420px);
+                height: min(90vw, 52vh, 420px);
+            }
+        }
+
+        /* PC 화면에서는 보드를 더 크게 표시 */
+        @media (min-width: 768px) {
+            .board-container {
+                width: min(70vw, 56vh, 460px);
+                height: min(70vw, 56vh, 460px);
+            }
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 게임 상태 오버레이 (시작 전, 일시정지, 게임 오버) */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(9, 13, 22, 0.85);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 10;
+            transition: opacity 0.2s ease;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .overlay-title {
+            font-size: clamp(1.5rem, 5vw, 2rem);
+            font-weight: 900;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .overlay-title.start { color: var(--neon-green); text-shadow: 0 0 12px var(--neon-green-glow); }
+        .overlay-title.pause { color: var(--accent-amber); text-shadow: 0 0 12px rgba(245, 158, 11, 0.5); }
+        .overlay-title.gameover { color: var(--neon-red); text-shadow: 0 0 12px var(--neon-red-glow); }
+
+        .overlay-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 18px;
+            line-height: 1.5;
+        }
+
+        .overlay-score {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 18px;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 6px 16px;
+            border-radius: 20px;
+        }
+
+        /* 게임 제어 버튼 영역 (시작, 일시정지, 다시 시작) */
+        .controls-bar {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn {
+            flex: 1;
+            max-width: 140px;
+            padding: clamp(8px, 1.4vh, 11px) 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: clamp(0.85rem, 2.8vw, 0.95rem);
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.1s ease, filter 0.15s ease, opacity 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: #fff;
+        }
+
+        .btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+        }
+
+        .btn-pause {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+        }
+
+        .btn-restart {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+        }
+
+        .overlay-btn {
+            padding: 12px 28px;
+            font-size: 1rem;
+            border-radius: 12px;
+            max-width: none;
+            flex: none;
+        }
+
+        /* 모바일/태블릿 십자(D-Pad) 터치 컨트롤러 */
+        .dpad-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 8px;
+            width: clamp(195px, 54vw, 240px);
+            height: clamp(124px, 34vw, 152px);
+            margin-top: auto;
+        }
+
+        .dpad-btn {
+            background-color: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 14px;
+            color: var(--text-main);
+            font-size: clamp(1.3rem, 4.5vw, 1.6rem);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #0f172a, 0 6px 12px rgba(0, 0, 0, 0.4);
+            transition: transform 0.06s ease, background-color 0.1s ease, border-color 0.1s ease;
+        }
+
+        /* 터치 및 클릭 시 즉각적인 시각 피드백 */
+        .dpad-btn:active, .dpad-btn.active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #0f172a;
+            background-color: rgba(34, 197, 94, 0.2);
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+        }
+
+        /* 십자키 그리드 배치 */
+        .dpad-up { grid-column: 2; grid-row: 1; }
+        .dpad-left { grid-column: 1; grid-row: 2; }
+        .dpad-down { grid-column: 2; grid-row: 2; }
+        .dpad-right { grid-column: 3; grid-row: 2; }
+
+        /* PC 조작 안내 문구 */
+        .pc-hint {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        @media (max-width: 767px) {
+            .pc-hint {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <!-- 1. 상단 점수판 영역 -->
+        <header class="header-panel">
+            <div class="game-title">
+                <span>🐍</span> SNAKE
+            </div>
+            <div class="score-group">
+                <div class="score-box">
+                    <span class="score-label">SCORE</span>
+                    <span class="score-value" id="currentScore">0</span>
+                </div>
+                <div class="score-box">
+                    <span class="score-label">BEST</span>
+                    <span class="score-value highlight" id="highScore">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 2. 20x20 격자 게임 보드 -->
+        <main class="board-container" id="boardContainer">
+            <canvas id="gameCanvas"></canvas>
+
+            <!-- 게임 상태 오버레이 -->
+            <div class="overlay" id="gameOverlay">
+                <h2 class="overlay-title start" id="overlayTitle">ARCADE SNAKE</h2>
+                <p class="overlay-desc" id="overlayDesc">방향키 또는 아래 터치 버튼으로<br>먹이를 먹고 뱀을 성장시키세요!</p>
+                <div class="overlay-score hidden" id="overlayFinalScore">최종 점수: 0점</div>
+                <button class="btn btn-start overlay-btn" id="overlayActionBtn">게임 시작</button>
+            </div>
+        </main>
+
+        <!-- 3. 게임 상태 제어 버튼 -->
+        <section class="controls-bar">
+            <button class="btn btn-start" id="btnStart">▶ 시작</button>
+            <button class="btn btn-pause" id="btnPause" disabled>⏸ 일시정지</button>
+            <button class="btn btn-restart" id="btnRestart">↻ 다시 시작</button>
+        </section>
+
+        <!-- 4. 스마트폰/태블릿용 터치 방향키 (D-Pad) -->
+        <nav class="dpad-container" aria-label="방향 조작 패드">
+            <button class="dpad-btn dpad-up" data-dir="UP" aria-label="위쪽">▲</button>
+            <button class="dpad-btn dpad-left" data-dir="LEFT" aria-label="왼쪽">◀</button>
+            <button class="dpad-btn dpad-down" data-dir="DOWN" aria-label="아래쪽">▼</button>
+            <button class="dpad-btn dpad-right" data-dir="RIGHT" aria-label="오른쪽">▶</button>
+        </nav>
+
+        <div class="pc-hint">PC 조작: 키보드 방향키(↑ ↓ ← →) 또는 WASD / 일시정지: Space</div>
+    </div>
+
+    <script>
+        /**
+         * 아케이드 스네이크 게임 로직
+         * - 20x20 격자 시스템
+         * - 입력 큐(Input Queue)를 통한 급격한 역방향 입력 및 연타 방지
+         * - 고해상도(Retina/DPR) 캔버스 렌더링 지원
+         */
+        (() => {
+            // DOM 요소 참조
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const boardContainer = document.getElementById('boardContainer');
+            
+            const currentScoreEl = document.getElementById('currentScore');
+            const highScoreEl = document.getElementById('highScore');
+            
+            const overlay = document.getElementById('gameOverlay');
+            const overlayTitle = document.getElementById('overlayTitle');
+            const overlayDesc = document.getElementById('overlayDesc');
+            const overlayFinalScore = document.getElementById('overlayFinalScore');
+            const overlayActionBtn = document.getElementById('overlayActionBtn');
+            
+            const btnStart = document.getElementById('btnStart');
+            const btnPause = document.getElementById('btnPause');
+            const btnRestart = document.getElementById('btnRestart');
+            const dpadButtons = document.querySelectorAll('.dpad-btn');
+
+            // 게임 상수 설정
+            const GRID_SIZE = 20;          // 20x20 격자
+            const TICK_INTERVAL = 135;     // 뱀 이동 속도 (ms 단위, 일정한 속도 유지)
+            const POINTS_PER_FOOD = 10;    // 먹이당 점수
+            const STORAGE_KEY = 'arcade_snake_high_score_v1';
+
+            // 방향 벡터 정의
+            const DIRECTIONS = {
+                UP:    { x: 0,  y: -1, opposite: 'DOWN' },
+                DOWN:  { x: 0,  y: 1,  opposite: 'UP' },
+                LEFT:  { x: -1, y: 0,  opposite: 'RIGHT' },
+                RIGHT: { x: 1,  y: 0,  opposite: 'LEFT' }
+            };
+
+            // 게임 상태 변수
+            let snake = [];
+            let food = { x: 10, y: 10 };
+            let currentDirection = 'RIGHT';
+            let inputQueue = [];           // 급격한 방향 전환 연타 버그 방지용 큐 (최대 2개 저장)
+            let score = 0;
+            let highScore = 0;
+            
+            // 상태 플래그: 'IDLE' (대기), 'RUNNING' (실행중), 'PAUSED' (일시정지), 'GAMEOVER' (종료)
+            let gameState = 'IDLE';
+            let gameLoopTimer = null;
+            let animationFrameId = null;
+            let pulsePhase = 0;            // 먹이 빛남 애니메이션용 위상
+
+            /**
+             * 초기화 실행
+             */
+            function init() {
+                loadHighScore();
+                resizeCanvas();
+                resetGameEntities();
+                draw();
+                setupEventListeners();
+            }
+
+            /**
+             * 로컬 스토리지에서 최고 점수 불러오기
+             */
+            function loadHighScore() {
+                try {
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    if (saved) {
+                        highScore = parseInt(saved, 10) || 0;
+                    }
+                } catch (e) {
+                    highScore = 0;
+                }
+                highScoreEl.textContent = highScore;
+            }
+
+            /**
+             * 최고 점수 저장 및 갱신
+             */
+            function updateHighScore(newScore) {
+                if (newScore > highScore) {
+                    highScore = newScore;
+                    highScoreEl.textContent = highScore;
+                    try {
+                        localStorage.setItem(STORAGE_KEY, highScore.toString());
+                    } catch (e) {
+                        // 시크릿 모드 등 스토리지 제한 시 무시
+                    }
+                }
+            }
+
+            /**
+             * 반응형 캔버스 해상도 조정 (선명한 그래픽 보장)
+             */
+            function resizeCanvas() {
+                const rect = boardContainer.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                draw();
+            }
+
+            /**
+             * 뱀, 먹이, 점수 초기 배치
+             */
+            function resetGameEntities() {
+                // 20x20 보드 중앙 부근에 길이 3의 뱀 배치 (오른쪽을 바라봄)
+                const startX = 6;
+                const startY = 10;
+                snake = [
+                    { x: startX,     y: startY }, // 머리
+                    { x: startX - 1, y: startY }, // 몸통 1
+                    { x: startX - 2, y: startY }  // 꼬리
+                ];
+                currentDirection = 'RIGHT';
+                inputQueue = [];
+                score = 0;
+                currentScoreEl.textContent = score;
+                spawnFood();
+            }
+
+            /**
+             * 뱀이 없는 빈 격자 칸에 무작위로 먹이 생성
+             */
+            function spawnFood() {
+                const emptyCells = [];
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const isOccupied = snake.some(segment => segment.x === x && segment.y === y);
+                        if (!isOccupied) {
+                            emptyCells.push({ x, y });
+                        }
+                    }
+                }
+
+                if (emptyCells.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * emptyCells.length);
+                    food = emptyCells[randomIndex];
+                }
+            }
+
+            /**
+             * 방향 입력 처리 (핵심 버그 방지 로직)
+             * - 한 틱(tick) 동안 두 번 연속 빠르게 눌러(예: 우측 이동 중 위->좌) 제자리 역주행 충돌하는 현상을 막기 위해
+             *   큐의 마지막 예약된 방향(없으면 현재 진행 방향)을 기준으로 유효성을 검사합니다.
+             */
+            function queueDirection(newDir) {
+                if (gameState !== 'RUNNING') return;
+                if (!DIRECTIONS[newDir]) return;
+
+                // 비교 기준 방향: 큐에 대기 중인 명령이 있다면 마지막 명령, 없다면 현재 이동 방향
+                const referenceDir = inputQueue.length > 0 
+                    ? inputQueue[inputQueue.length - 1] 
+                    : currentDirection;
+
+                // 같은 방향 중복 입력 무시 및 정반대 방향 입력 차단
+                if (newDir === referenceDir || DIRECTIONS[newDir].opposite === referenceDir) {
+                    return;
+                }
+
+                // 입력 버퍼는 최대 2개까지만 허용하여 과도한 선입력 지연 방지
+                if (inputQueue.length < 2) {
+                    inputQueue.push(newDir);
+                }
+            }
+
+            /**
+             * 게임 시작
+             */
+            function startGame() {
+                if (gameState === 'RUNNING') return;
+
+                if (gameState === 'IDLE' || gameState === 'GAMEOVER') {
+                    resetGameEntities();
+                }
+
+                gameState = 'RUNNING';
+                updateUIControls();
+                hideOverlay();
+
+                startLoop();
+            }
+
+            /**
+             * 일시정지 / 재개 토글
+             */
+            function togglePause() {
+                if (gameState === 'RUNNING') {
+                    gameState = 'PAUSED';
+                    stopLoop();
+                    updateUIControls();
+                    showOverlay('PAUSED');
+                } else if (gameState === 'PAUSED') {
+                    gameState = 'RUNNING';
+                    updateUIControls();
+                    hideOverlay();
+                    startLoop();
+                }
+            }
+
+            /**
+             * 게임 즉시 다시 시작
+             */
+            function restartGame() {
+                stopLoop();
+                resetGameEntities();
+                gameState = 'RUNNING';
+                updateUIControls();
+                hideOverlay();
+                draw();
+                startLoop();
+            }
+
+            /**
+             * 게임 루프 타이머 시작
+             */
+            function startLoop() {
+                stopLoop();
+                gameLoopTimer = setInterval(gameTick, TICK_INTERVAL);
+                
+                // 먹이 빛남 효과 등 부드러운 시각 연출을 위한 렌더링 루프
+                const renderLoop = () => {
+                    if (gameState === 'RUNNING') {
+                        pulsePhase += 0.12;
+                        draw();
+                        animationFrameId = requestAnimationFrame(renderLoop);
+                    }
+                };
+                animationFrameId = requestAnimationFrame(renderLoop);
+            }
+
+            /**
+             * 게임 루프 정지
+             */
+            function stopLoop() {
+                if (gameLoopTimer) {
+                    clearInterval(gameLoopTimer);
+                    gameLoopTimer = null;
+                }
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+            }
+
+            /**
+             * 1틱(Tick)마다 실행되는 뱀 이동 및 충돌 판정 로직
+             */
+            function gameTick() {
+                if (gameState !== 'RUNNING') return;
+
+                // 1. 입력 큐에서 다음 방향 꺼내기
+                if (inputQueue.length > 0) {
+                    currentDirection = inputQueue.shift();
+                }
+
+                const dirVector = DIRECTIONS[currentDirection];
+                const head = snake[0];
+                const nextHead = {
+                    x: head.x + dirVector.x,
+                    y: head.y + dirVector.y
+                };
+
+                // 2. 벽(20x20 경계) 충돌 검사
+                if (
+                    nextHead.x < 0 || 
+                    nextHead.x >= GRID_SIZE || 
+                    nextHead.y < 0 || 
+                    nextHead.y >= GRID_SIZE
+                ) {
+                    handleGameOver();
+                    return;
+                }
+
+                // 3. 먹이 섭취 여부 확인
+                const willEatFood = (nextHead.x === food.x && nextHead.y === food.y);
+
+                // 4. 자기 몸통 충돌 검사
+                // 먹이를 먹지 않는 경우 이번 틱에 꼬리 끝 칸이 비워지므로 마지막 꼬리 칸은 충돌 대상에서 제외
+                const bodyCheckLimit = willEatFood ? snake.length : snake.length - 1;
+                for (let i = 0; i < bodyCheckLimit; i++) {
+                    if (snake[i].x === nextHead.x && snake[i].y === nextHead.y) {
+                        handleGameOver();
+                        return;
+                    }
+                }
+
+                // 5. 뱀 이동 처리 (새 머리 추가)
+                snake.unshift(nextHead);
+
+                if (willEatFood) {
+                    // 점수 10점 증가 및 꼬리 유지 (길이 +1)
+                    score += POINTS_PER_FOOD;
+                    currentScoreEl.textContent = score;
+                    updateHighScore(score);
+                    spawnFood();
+                } else {
+                    // 먹이를 먹지 않았으면 꼬리 한 칸 제거
+                    snake.pop();
+                }
+
+                draw();
+            }
+
+            /**
+             * 게임 오버 처리
+             */
+            function handleGameOver() {
+                gameState = 'GAMEOVER';
+                stopLoop();
+                draw(); // 충돌 직전 상태 렌더링
+                updateUIControls();
+                showOverlay('GAMEOVER');
+            }
+
+            /**
+             * 상단/하단 버튼 활성화 상태 업데이트
+             */
+            function updateUIControls() {
+                if (gameState === 'IDLE') {
+                    btnStart.disabled = false;
+                    btnStart.textContent = '▶ 시작';
+                    btnPause.disabled = true;
+                    btnPause.textContent = '⏸ 일시정지';
+                } else if (gameState === 'RUNNING') {
+                    btnStart.disabled = true;
+                    btnPause.disabled = false;
+                    btnPause.textContent = '⏸ 일시정지';
+                } else if (gameState === 'PAUSED') {
+                    btnStart.disabled = false;
+                    btnStart.textContent = '▶ 계속하기';
+                    btnPause.disabled = false;
+                    btnPause.textContent = '▶ 재개';
+                } else if (gameState === 'GAMEOVER') {
+                    btnStart.disabled = true;
+                    btnPause.disabled = true;
+                    btnPause.textContent = '⏸ 일시정지';
+                }
+            }
+
+            /**
+             * 오버레이 화면 표시
+             */
+            function showOverlay(type) {
+                overlay.classList.remove('hidden');
+                overlayTitle.className = 'overlay-title';
+
+                if (type === 'PAUSED') {
+                    overlayTitle.classList.add('pause');
+                    overlayTitle.textContent = 'PAUSED';
+                    overlayDesc.innerHTML = '게임이 일시정지되었습니다.';
+                    overlayFinalScore.classList.add('hidden');
+                    overlayActionBtn.textContent = '계속하기';
+                    overlayActionBtn.className = 'btn btn-pause overlay-btn';
+                } else if (type === 'GAMEOVER') {
+                    overlayTitle.classList.add('gameover');
+                    overlayTitle.textContent = 'GAME OVER';
+                    overlayDesc.innerHTML = '벽이나 자신의 몸에 부딪혔습니다!';
+                    overlayFinalScore.textContent = `최종 점수: ${score}점`;
+                    overlayFinalScore.classList.remove('hidden');
+                    overlayActionBtn.textContent = '다시 시작';
+                    overlayActionBtn.className = 'btn btn-restart overlay-btn';
+                }
+            }
+
+            /**
+             * 오버레이 화면 숨김
+             */
+            function hideOverlay() {
+                overlay.classList.add('hidden');
+            }
+
+            /**
+             * 캔버스 전체 렌더링 (격자, 먹이, 뱀)
+             */
+            function draw() {
+                const boardSize = boardContainer.clientWidth;
+                const cellSize = boardSize / GRID_SIZE;
+
+                // 1. 어두운 아케이드 배경 채우기
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, boardSize, boardSize);
+
+                // 2. 은은한 20x20 격자선 그리기
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+                ctx.lineWidth = 1;
+                for (let i = 1; i < GRID_SIZE; i++) {
+                    const pos = i * cellSize;
+                    // 세로선
+                    ctx.beginPath();
+                    ctx.moveTo(pos, 0);
+                    ctx.lineTo(pos, boardSize);
+                    ctx.stroke();
+                    // 가로선
+                    ctx.beginPath();
+                    ctx.moveTo(0, pos);
+                    ctx.lineTo(boardSize, pos);
+                    ctx.stroke();
+                }
+
+                // 3. 네온 먹이 그리기
+                drawFood(cellSize);
+
+                // 4. 초록색 아케이드 뱀 그리기
+                drawSnake(cellSize);
+            }
+
+            /**
+             * 빛나는 먹이 렌더링
+             */
+            function drawFood(cellSize) {
+                const centerX = (food.x + 0.5) * cellSize;
+                const centerY = (food.y + 0.5) * cellSize;
+                const pulseScale = 1 + Math.sin(pulsePhase) * 0.08;
+                const radius = (cellSize * 0.36) * pulseScale;
+
+                ctx.save();
+                // 네온 발광 효과
+                ctx.shadowColor = '#f43f5e';
+                ctx.shadowBlur = 12;
+
+                // 먹이 본체 (붉은빛 그라데이션)
+                const grad = ctx.createRadialGradient(
+                    centerX - radius * 0.3, centerY - radius * 0.3, radius * 0.1,
+                    centerX, centerY, radius
+                );
+                grad.addColorStop(0, '#fda4af');
+                grad.addColorStop(0.4, '#f43f5e');
+                grad.addColorStop(1, '#be123c');
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 꼭지 디테일
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#4ade80';
+                ctx.beginPath();
+                ctx.ellipse(centerX + radius * 0.25, centerY - radius * 0.85, radius * 0.28, radius * 0.14, -Math.PI / 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            /**
+             * 초록색 뱀 (머리 + 몸통 + 눈 디테일) 렌더링
+             */
+            function drawSnake(cellSize) {
+                const padding = Math.max(1.5, cellSize * 0.08);
+                const segmentSize = cellSize - padding * 2;
+                const cornerRadius = Math.max(4, cellSize * 0.26);
+
+                // 꼬리부터 머리 순서로 그려 머리가 항상 최상단에 오도록 함
+                for (let i = snake.length - 1; i >= 0; i--) {
+                    const seg = snake[i];
+                    const x = seg.x * cellSize + padding;
+                    const y = seg.y * cellSize + padding;
+                    const isHead = (i === 0);
+
+                    ctx.save();
+                    if (isHead) {
+                        // 머리: 밝은 네온 초록색 + 발광
+                        ctx.shadowColor = 'rgba(74, 222, 128, 0.6)';
+                        ctx.shadowBlur = 10;
+                        ctx.fillStyle = '#4ade80';
+                    } else {
+                        // 몸통: 꼬리로 갈수록 자연스럽게 짙어지는 초록색
+                        const ratio = i / Math.max(snake.length, 1);
+                        ctx.fillStyle = ratio < 0.5 ? '#22c55e' : '#16a34a';
+                    }
+
+                    drawRoundRect(ctx, x, y, segmentSize, segmentSize, cornerRadius);
+                    ctx.fill();
+
+                    // 머리에 방향을 바라보는 눈 그리기
+                    if (isHead) {
+                        ctx.shadowBlur = 0;
+                        drawSnakeEyes(x, y, segmentSize);
+                    }
+                    ctx.restore();
+                }
+            }
+
+            /**
+             * 진행 방향에 맞춘 뱀 눈 디테일
+             */
+            function drawSnakeEyes(x, y, size) {
+                const eyeRadius = Math.max(1.8, size * 0.13);
+                const pupilRadius = eyeRadius * 0.55;
+                let eye1 = { x: 0, y: 0 };
+                let eye2 = { x: 0, y: 0 };
+
+                const offsetSide = size * 0.26;
+                const offsetFront = size * 0.72;
+                const offsetBack = size * 0.28;
+
+                switch (currentDirection) {
+                    case 'RIGHT':
+                        eye1 = { x: x + offsetFront, y: y + offsetSide };
+                        eye2 = { x: x + offsetFront, y: y + size - offsetSide };
+                        break;
+                    case 'LEFT':
+                        eye1 = { x: x + offsetBack, y: y + offsetSide };
+                        eye2 = { x: x + offsetBack, y: y + size - offsetSide };
+                        break;
+                    case 'UP':
+                        eye1 = { x: x + offsetSide, y: y + offsetBack };
+                        eye2 = { x: x + size - offsetSide, y: y + offsetBack };
+                        break;
+                    case 'DOWN':
+                        eye1 = { x: x + offsetSide, y: y + offsetFront };
+                        eye2 = { x: x + size - offsetSide, y: y + offsetFront };
+                        break;
+                }
+
+                // 흰자
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(eye1.x, eye1.y, eyeRadius, 0, Math.PI * 2);
+                ctx.arc(eye2.x, eye2.y, eyeRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 눈동자
+                ctx.fillStyle = '#090d16';
+                ctx.beginPath();
+                ctx.arc(eye1.x, eye1.y, pupilRadius, 0, Math.PI * 2);
+                ctx.arc(eye2.x, eye2.y, pupilRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            /**
+             * 둥근 사각형 헬퍼 함수
+             */
+            function drawRoundRect(context, x, y, width, height, radius) {
+                context.beginPath();
+                context.moveTo(x + radius, y);
+                context.lineTo(x + width - radius, y);
+                context.quadraticCurveTo(x + width, y, x + width, y + radius);
+                context.lineTo(x + width, y + height - radius);
+                context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                context.lineTo(x + radius, y + height);
+                context.quadraticCurveTo(x, y + height, x, y + height - radius);
+                context.lineTo(x, y + radius);
+                context.quadraticCurveTo(x, y, x + radius, y);
+                context.closePath();
+            }
+
+            /**
+             * 키보드, 터치 D-Pad, 버튼 이벤트 리스너 등록
+             */
+            function setupEventListeners() {
+                // 화면 크기 변경 시 캔버스 크기 재조정
+                window.addEventListener('resize', resizeCanvas);
+
+                // PC 키보드 조작
+                window.addEventListener('keydown', (e) => {
+                    const keyMap = {
+                        'ArrowUp': 'UP', 'KeyW': 'UP', 'w': 'UP', 'W': 'UP',
+                        'ArrowDown': 'DOWN', 'KeyS': 'DOWN', 's': 'DOWN', 'S': 'DOWN',
+                        'ArrowLeft': 'LEFT', 'KeyA': 'LEFT', 'a': 'LEFT', 'A': 'LEFT',
+                        'ArrowRight': 'RIGHT', 'KeyD': 'RIGHT', 'd': 'RIGHT', 'D': 'RIGHT'
+                    };
+
+                    // 방향키 및 스페이스바 입력 시 페이지 스크롤 방지
+                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+                        e.preventDefault();
+                    }
+
+                    if (keyMap[e.code] || keyMap[e.key]) {
+                        const dir = keyMap[e.code] || keyMap[e.key];
+                        // 대기 상태에서 방향키를 누르면 바로 게임 시작 편의 제공
+                        if (gameState === 'IDLE') {
+                            startGame();
+                        }
+                        queueDirection(dir);
+                        highlightDpadButton(dir);
+                    } else if (e.code === 'Space') {
+                        if (gameState === 'IDLE' || gameState === 'GAMEOVER') {
+                            restartGame();
+                        } else if (gameState === 'RUNNING' || gameState === 'PAUSED') {
+                            togglePause();
+                        }
+                    }
+                });
+
+                // 모바일/태블릿 터치 D-Pad 버튼 (pointerdown 사용으로 터치와 마우스 클릭 모두 즉각 반응)
+                dpadButtons.forEach(btn => {
+                    btn.addEventListener('pointerdown', (e) => {
+                        e.preventDefault();
+                        const dir = btn.getAttribute('data-dir');
+                        if (gameState === 'IDLE') {
+                            startGame();
+                        }
+                        queueDirection(dir);
+                        highlightDpadButton(dir);
+                    });
+                });
+
+                // 상단/하단 게임 제어 버튼
+                btnStart.addEventListener('click', () => {
+                    if (gameState === 'PAUSED') {
+                        togglePause();
+                    } else {
+                        startGame();
+                    }
+                });
+
+                btnPause.addEventListener('click', togglePause);
+                btnRestart.addEventListener('click', restartGame);
+
+                // 오버레이 내부 액션 버튼
+                overlayActionBtn.addEventListener('click', () => {
+                    if (gameState === 'PAUSED') {
+                        togglePause();
+                    } else if (gameState === 'GAMEOVER') {
+                        restartGame();
+                    } else {
+                        startGame();
+                    }
+                });
+            }
+
+            /**
+             * 키보드/터치 입력 시 해당 D-Pad 버튼 시각 효과 강조
+             */
+            function highlightDpadButton(dir) {
+                const targetBtn = document.querySelector(`.dpad-btn[data-dir="${dir}"]`);
+                if (!targetBtn) return;
+                targetBtn.classList.add('active');
+                setTimeout(() => {
+                    targetBtn.classList.remove('active');
+                }, 120);
+            }
+
+            // 게임 초기화 시작
+            window.addEventListener('load', init);
+        })();
+    </script>
+</body>
+</html>
